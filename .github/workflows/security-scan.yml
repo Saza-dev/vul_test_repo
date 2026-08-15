@@ -51,7 +51,8 @@ jobs:
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${process.env.CI_SECRET_KEY}`
+                'Authorization': `Bearer ${process.env.CI_SECRET_KEY}`,
+                'ngrok-skip-browser-warning': 'true' // <--- ADD THIS LINE
               },
               body: JSON.stringify({
                 repoUrl: `https://github.com/${context.repo.owner}/${context.repo.repo}`,
@@ -60,6 +61,15 @@ jobs:
                 files: filesToScan
               })
             });
+            
+            // --- ADD THIS ERROR CHECK ---
+            if (!response.ok) {
+              const errorText = await response.text();
+              console.error("API failed with status", response.status, "and body:", errorText);
+              core.setFailed(`API request failed: ${response.status}`);
+              return;
+            }
+            // -----------------------------
 
             const result = await response.json();
             console.log("Scan Result:", result);
