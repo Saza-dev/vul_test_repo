@@ -1,0 +1,87 @@
+name: DeepSeek Code Security Scanner
+
+on:
+  pull_request:
+    branches: ["main", "master"]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  scan-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 
+
+      - name: Extract changed files and send to Next.js API
+        uses: actions/github-script@v7
+        env:
+          SCANNER_API_URL: ${{ secrets.SCANNER_API_URL }}
+          CI_SECRET_KEY: ${{ secrets.CI_SECRET_KEY }}
+        with:
+          script: |
+            // 1. Get the list of changed files in this PR
+            const { data: diff } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+
+            const filesToScan = [];
+            for (const file of diff) {
+              // Only scan added or modified files, ignore deletions and images
+              if (file.status !== 'removed' && file.filename.endsWith('.js')) {
+                const fs = require('fs');
+                const content = fs.readFileSync(file.filename, 'utf8');
+                filesToScan.push({ path: file.filename, content: content });
+              }
+            }
+
+            if (filesToScan.length === 0) {
+              console.log("No relevant files to scan.");
+              return;
+            }
+
+            // 2. Send the files to your Next.js Backend
+            const response = await fetch(`${process.env.SCANNER_API_URL}/api/scan/ci`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${process.env.CI_SECRET_KEY}`
+              },
+              body: JSON.stringify({
+                repoUrl: `https://github.com/${context.repo.owner}/${context.repo.repo}`,
+                branch: context.payload.pull_request.head.ref,
+                prNumber: context.issue.number,
+                files: filesToScan
+              })
+            });
+
+            const result = await response.json();
+            console.log("Scan Result:", result);
+
+            // 3. Optional: Post a comment on the PR if vulnerabilities are found
+            if (result.vulnerabilitiesFound > 0) {
+              let body = `### 🚨 DeepSeek Security Scan Found Issues!\n\n`;
+              result.details.forEach(item => {
+                body += `**File:** \`${item.file}\`\n`;
+                item.findings.forEach(vuln => {
+                  body += `- **${vuln.severity}**: ${vuln.title}\n`;
+                });
+              });
+              body += `\nCheck the internal dashboard for full details (Scan ID: ${result.scanId}).`;
+              
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+              
+              // Fail the workflow if you want to block the PR
+              core.setFailed("Security vulnerabilities found!");
+            }
