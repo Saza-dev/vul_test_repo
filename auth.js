@@ -20,7 +20,11 @@ app.post("/login", (req, res) => {
     if (err) return res.status(500).send("Error");
     res.send("Success");
   });
+
+  console.log(username);
 });
+
+console.log(username);
 
 app.listen(8080, () => {
   console.log("Server running on port 8080");
