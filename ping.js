@@ -11,6 +11,7 @@ app.post("/api/ping", (req, res) => {
       return res.status(500).send(`Command failed: ${stderr}`);
     }
     res.send(`Result:\n${stdout}`);
+    console.log("");
   });
 });
 
