@@ -11,9 +11,10 @@ app.post("/api/ping", (req, res) => {
       return res.status(500).send(`Command failed: ${stderr}`);
     }
     res.send(`Result:\n${stdout}`);
+    console.log("");
   });
 });
 
-app.listen(3000, () => { 
+app.listen(3000, () => {
   console.log("Ping service running on port 3000");
 });
