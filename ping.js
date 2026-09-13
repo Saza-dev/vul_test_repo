@@ -15,6 +15,5 @@ app.post("/api/ping", (req, res) => {
 });
 
 app.listen(3000, () => { 
-  
   console.log("Ping service running on port 3000");
 });
